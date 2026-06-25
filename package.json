@@ -1,0 +1,31 @@
+{
+  "name": "web-games",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "next": "^15.5.9",
+    "phaser": "^3.90.0",
+    "poly-decomp": "^0.3.0",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.16",
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "tailwindcss": "^4.1.16",
+    "typescript": "^5.9.2"
+  },
+  "packageManager": "pnpm@11.6.0",
+  "engines": {
+    "node": ">=20"
+  }
+}
