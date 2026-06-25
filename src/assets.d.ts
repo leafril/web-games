@@ -16,3 +16,6 @@ declare module "*.ogg" {
   const src: string;
   export default src;
 }
+
+// poly-decomp 는 타입 선언이 없는 JS 라이브러리.
+declare module "poly-decomp";
