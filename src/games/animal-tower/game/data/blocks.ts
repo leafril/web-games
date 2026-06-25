@@ -5,7 +5,6 @@ import {
   ANIMAL_DISPLAY_WIDTH_PX,
   ANIMAL_SHAPES,
   DEFAULT_BLOCK_DISPLAY_WIDTH_PX,
-  SOUNDS,
   TEXTURES,
 } from "../config/assetKeys";
 import type { AnimalShapeEntry, BlockDef } from "../config/assetKeys";
@@ -43,7 +42,6 @@ const DISPLAY_WIDTH_BY_NAME: ReadonlyMap<string, number> = new Map(
 const buildBlockDef = (word: Word, shape: AnimalShapeEntry): BlockDef => ({
   id: word.id,
   key: `${TEXTURES.blockPrefix}${word.id}`,
-  audioKey: `${SOUNDS.blockAudioPrefix}${word.id}`,
   imageUrl: word.imageUrl,
   audioUrl: word.audioUrl,
   animalName: word.nameEn,

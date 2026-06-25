@@ -21,17 +21,6 @@ export const TEXTURES = {
   bgStratosphere: "tower-battle-bg-stratosphere",
 } as const;
 
-/** 사운드 키. word.id 별 발음 오디오 키는 이 prefix + id 로 만든다. */
-export const SOUNDS = {
-  blockAudioPrefix: "tower-battle-audio_",
-  /** 마일스톤 격려 내레이션 키 prefix. 뒤에 0-based 변주 인덱스를 붙인다. */
-  milestoneCheerPrefix: "tower-battle-cheer_",
-  /** 동물 등장 "펑" 효과음. */
-  spawnPoof: "tower-battle-spawn-poof",
-} as const;
-
-/** 마일스톤 격려 내레이션 변주 개수 (en-US 고정 에셋). 마일스톤마다 로테이션. */
-export const MILESTONE_CHEER_COUNT = 2;
 
 /** Scene 간 공유되는 registry 키. PreloadScene 이 set, GameScene 이 get. */
 export const REGISTRY = {
@@ -70,11 +59,9 @@ export type BlockDef = {
   id: number;
   /** Phaser 텍스처 키 (word id 기반 — nameEn 중복·특수문자 무관하게 안정). */
   key: string;
-  /** Phaser 사운드 키 (발음 오디오). */
-  audioKey: string;
-  /** BE 단어 풀의 이미지 URL (원격 래스터). PreloadScene 이 load.image 로 등록. */
+  /** 이미지 URL. PreloadScene 이 load.image 로 등록. */
   imageUrl: string;
-  /** BE 단어 풀의 발음 오디오 URL. PreloadScene 이 load.audio 로 등록. */
+  /** 발음 오디오 URL — 결과 집계(Word)로만 흐른다(재생 없음). */
   audioUrl: string;
   /** 동물 영어 이름. HUD 라벨·callout·결과 카드 표기에 사용. ANIMAL_SHAPES lookup 키. */
   animalName: string;

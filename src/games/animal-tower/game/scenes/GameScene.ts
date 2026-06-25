@@ -21,7 +21,6 @@ import {
   PLATFORM,
   REGISTRY,
   SCENES,
-  SOUNDS,
   TEXTURES,
 } from "../config/assetKeys";
 import type { BlockDef } from "../config/assetKeys";
@@ -39,12 +38,6 @@ import {
 } from "../config/milestone";
 import { DEV_TUNING } from "../config/devTuning";
 import { paletteHex, fontSizePx } from "../config/theme";
-import {
-  playChangeSound,
-  playReleaseSound,
-  playRotateSound,
-  playSpawnSound,
-} from "../effects/audio";
 import { playCollisionStars } from "../effects/collisionStars";
 import { playIdleHint, type IdleHintController } from "../effects/idleHint";
 import { playMilestoneCelebrate } from "../effects/milestoneCelebrate";
@@ -52,12 +45,6 @@ import { playMilestoneConfetti } from "../effects/milestoneConfetti";
 import { playCloudPuff } from "../effects/cloudPuff";
 import { playSpawnPop } from "../effects/spawnPop";
 import { Anchor, MilestoneLine } from "../objects";
-import MilestoneCheer1 from "../assets/MilestoneCheer1.wav";
-import MilestoneCheer2 from "../assets/MilestoneCheer2.wav";
-import SpawnPoof from "../assets/SpawnPoof.mp3";
-
-/** 마일스톤 격려 내레이션 변주 (en-US 고정 에셋). 마일스톤마다 로테이션 재생. */
-const MILESTONE_CHEERS = [MilestoneCheer1, MilestoneCheer2];
 
 const COUNTDOWN_SECONDS = 3;
 const COUNTDOWN_FONT_SIZE_PX = fontSizePx["4xl"];
@@ -195,8 +182,6 @@ export class GameScene extends Phaser.Scene {
   private peakY = PORTRAIT_GAME_HEIGHT;
   /** 직전까지 돌파한 최고 5m 마일스톤(m). 새 돌파 판정의 상태. */
   private lastMilestone = 0;
-  /** 마일스톤 격려가 막 재생됐으면 true — 직후 1회 동물 발음을 스킵(겹침 방지). */
-  private suppressNextSpawnVoice = false;
   /** 마일스톤 돌파가 막 일어났으면 true — 다음 동물 스폰을 축하 종료 후로 미룬다. */
   private pendingMilestoneHold = false;
   /** wordId → 만난 단어 + 누적 횟수. drop 마다 누적. GameResult·BE payload 소스. */
@@ -209,8 +194,6 @@ export class GameScene extends Phaser.Scene {
   private idleHint: IdleHintController | null = null;
   /** PreloadScene 이 registry 에 올린 셔플된 세션 단어 풀. create() 에서 주입. */
   private blocks: BlockDef[] = [];
-  /** 직전 동물 발음. 새 동물 spawn 시 stop 후 교체 — 한 번에 한 마리만 들린다. */
-  private currentVoice: Phaser.Sound.BaseSound | null = null;
   /** 다음 목표 마일스톤 눈금선(한 번에 하나). 돌파 시 다음 목표 높이로 이동. create()에서 생성. */
   private milestoneLine!: MilestoneLine;
   /** 마일스톤 돌파마다 띄운 보너스 발판들. scene 종료 시 일괄 정리. */
@@ -232,7 +215,6 @@ export class GameScene extends Phaser.Scene {
     this.droppedCount = 0;
     this.peakY = PORTRAIT_GAME_HEIGHT;
     this.lastMilestone = 0;
-    this.suppressNextSpawnVoice = false;
     this.pendingMilestoneHold = false;
     this.encounters = new Map();
     this.startedAt = "";
@@ -240,18 +222,12 @@ export class GameScene extends Phaser.Scene {
     this.idleHintTimer = null;
     this.idleHint = null;
     this.blocks = [];
-    this.currentVoice = null;
     this.anchors = [];
   }
 
   create(): void {
     this.blocks =
       (this.registry.get(REGISTRY.blocks) as BlockDef[] | undefined) ?? [];
-    // 오디오는 진입 임계 경로에서 분리해 여기서 백그라운드로 받는다 (PreloadScene 은
-    // 시각 에셋만 받아 게임을 빠르게 띄움). 카운트다운(3초)이 도는 동안 도착하므로
-    // 첫 블록 발음까지 보통 늦지 않고, 늦더라도 재생 경로가 cache.audio.exists 로
-    // 가드되어 조용히 skip — 깨지지 않는다.
-    this.loadDeferredAudio();
     // 캔버스 백킹은 디자인 × dpr, 카메라 zoom 으로 게임 좌표를 디자인 그대로 유지.
     // setOrigin(0, 0): zoom pivot 을 viewport 좌상단으로 옮긴다. 기본값(0.5, 0.5)은
     // viewport 중앙 기준으로 확대해 world (0,0)이 화면 밖으로 밀려난다.
@@ -312,9 +288,6 @@ export class GameScene extends Phaser.Scene {
           this.onTestMilestone,
         );
       }
-      this.currentVoice?.stop();
-      this.currentVoice?.destroy();
-      this.currentVoice = null;
       this.input.off("pointerdown", this.onPointerDown, this);
       this.input.off("pointermove", this.onPointerMove, this);
       this.input.off("pointerup", this.onPointerUp, this);
@@ -385,65 +358,12 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  /**
-   * 비임계 오디오를 게임 시작 후 백그라운드로 적재한다 — 블록 발음(원격 N개),
-   * 마일스톤 격려(고정 2개), 등장 펑(고정 1개). PreloadScene 은 시각 에셋만 받아
-   * scene.start 를 막는 원격 요청을 줄였고, 여기서 LoaderPlugin 을 비동기로 돌려
-   * update 루프를 막지 않는다. 이미 cache 에 있으면(재시작) 큐에 안 넣는다.
-   */
-  private loadDeferredAudio(): void {
-    let queued = false;
-    // 원격 발음 — PreloadScene 의 이미지 로드와 동일하게 CORS anonymous 필요.
-    this.load.setCORS("anonymous");
-    this.blocks.forEach((block) => {
-      if (block.audioUrl && !this.cache.audio.exists(block.audioKey)) {
-        this.load.audio(block.audioKey, block.audioUrl);
-        queued = true;
-      }
-    });
-    this.load.setCORS("");
-
-    MILESTONE_CHEERS.forEach((src, i) => {
-      const key = `${SOUNDS.milestoneCheerPrefix}${i}`;
-      if (!this.cache.audio.exists(key)) {
-        this.load.audio(key, src);
-        queued = true;
-      }
-    });
-
-    if (!this.cache.audio.exists(SOUNDS.spawnPoof)) {
-      this.load.audio(SOUNDS.spawnPoof, SpawnPoof);
-      queued = true;
-    }
-
-    if (queued) {
-      this.load.start();
-    }
-  }
-
   private pickRandomBlock(): BlockDef | undefined {
     return this.blocks[Math.floor(Math.random() * this.blocks.length)];
   }
 
   private findBlockByKey(key: string): BlockDef | undefined {
     return this.blocks.find((b) => b.key === key);
-  }
-
-  /**
-   * 동물 발음 재생. Web Speech TTS(animalVoice) 를 BE 오디오로 대체 (FE-7).
-   * 직전 발음을 stop + destroy 후 교체 — 학습 목적상 한 번에 한 마리만 들린다.
-   * destroy 를 빼면 sound.add 한 인스턴스가 SoundManager.sounds[] 에 계속 쌓여
-   * 한 판(수십 회 spawn) 동안 유령 인스턴스가 누적된다.
-   * 원격 오디오 로드 실패 시 cache 에 없으므로 조용히 skip.
-   */
-  private playAnimalVoice(audioKey: string): void {
-    if (!this.cache.audio.exists(audioKey)) {
-      return;
-    }
-    this.currentVoice?.stop();
-    this.currentVoice?.destroy();
-    this.currentVoice = this.sound.add(audioKey);
-    this.currentVoice.play();
   }
 
   private spawnHangingBlock(): void {
@@ -474,7 +394,6 @@ export class GameScene extends Phaser.Scene {
     if (!newBlock) {
       return;
     }
-    playChangeSound();
     const x = this.hangingBlock.x;
     // 등장 pop(playSpawnPop)이 아직 도는 중에 연타로 destroy 하면, 죽은 Matter body 의
     // scaleX 를 트윈이 계속 써서 Body.scale 이 크래시한다 → destroy 전에 트윈 정리.
@@ -487,7 +406,7 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  /** 매달림 image 생성·hangY 정렬·등장 pop·등장 사운드·이름 발음·HUD notify 를 묶는 단일 절차. */
+  /** 매달림 image 생성·hangY 정렬·등장 pop·HUD notify 를 묶는 단일 절차. */
   private installHangingBlock(block: BlockDef, x: number): void {
     // FE-7 이전부터 검증된 생성 경로. body 는 shape(=정규화 verts × displayWidth)
     // 에서 만들어져 텍스처 크기와 무관하게 디자인 좌표로 정확하다. 충돌 정합은
@@ -521,12 +440,6 @@ export class GameScene extends Phaser.Scene {
       block.displayWidth,
     );
     playSpawnPop(this, this.hangingBlock);
-    playSpawnSound(this);
-    if (this.suppressNextSpawnVoice) {
-      this.suppressNextSpawnVoice = false;
-    } else {
-      this.playAnimalVoice(block.audioKey);
-    }
     this.events.emit(GAME_EVENT.BLOCK_SPAWNED, {
       animalName: block.animalName,
     });
@@ -611,7 +524,6 @@ export class GameScene extends Phaser.Scene {
       return;
     }
     this.dismissIdleHint();
-    playRotateSound();
     this.hangingBlock.setRotation(
       this.hangingBlock.rotation + ROTATION_STEP_RAD,
     );
@@ -622,7 +534,6 @@ export class GameScene extends Phaser.Scene {
     if (!this.hangingBlock) {
       return;
     }
-    playReleaseSound();
     const released = this.hangingBlock;
     const blockDef = this.findBlockByKey(released.texture.key);
     if (blockDef) {
@@ -865,7 +776,6 @@ export class GameScene extends Phaser.Scene {
       this.lastMilestone,
     );
     playMilestoneConfetti(this);
-    this.playMilestoneCheer();
   }
 
   /** dev 전용 — 버튼 이벤트로 마일스톤 효과를 즉시 테스트. 실제 높이와 무관하게 다음 5m 발동. */
@@ -876,15 +786,6 @@ export class GameScene extends Phaser.Scene {
     this.spawnAnchor(this.lastMilestone);
     this.fireMilestoneCelebration();
   };
-
-  /**
-   * 마일스톤 격려 내레이션 — 동물 발음과 같은 음성 채널(currentVoice)을 써 겹침을
-   * 막는다. 격려 직후 1회는 다음 블록 발음을 스킵(suppressNextSpawnVoice)해 격려가
-   * 끊기지 않게 한다. 변주는 마일스톤 순번으로 결정적 로테이션.
-   */
-  private playMilestoneCheer(): void {
-    // 순수 탑쌓기 — 마일스톤 격려 음성 제거(no-op).
-  }
 
   private handleBlockEjected(): void {
     // rest timeout fallback. game over 대신 정착 인정 후 다음 블록으로.

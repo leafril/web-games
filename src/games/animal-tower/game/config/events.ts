@@ -1,4 +1,3 @@
-import type { GameResult } from "@/games/animal-tower/engine/gameTypes";
 
 export const GAME_EVENT = {
   BLOCK_SETTLED: "tower-battle:block-settled",
@@ -17,5 +16,3 @@ export type BlockSettledPayload = {
 export type BlockSpawnedPayload = {
   animalName: string;
 };
-
-type GameEndedPayload = GameResult;

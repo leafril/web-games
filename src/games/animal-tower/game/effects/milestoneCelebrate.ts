@@ -2,7 +2,6 @@ import * as Phaser from "phaser";
 
 import { GAME_HEADING_FONT_FAMILY } from "@/lib/fonts";
 import { palette, paletteHex } from "../config/theme";
-import { playMilestoneSound } from "./audio";
 
 const TEXT_FONT_SIZE_PX = 88;
 const TEXT_STROKE_THICKNESS = 12;
@@ -26,7 +25,7 @@ const BURST_COLORS = paletteHex.toneSet.pastel6;
 
 /**
  * 5m 마일스톤 돌파 축하 — 별 burst + "{m}m!" 텍스트 spring pop 후 떠오르며 fade.
- * (x, y) 는 월드 좌표(보통 탑 윗면 위). 사운드는 짧은 상승 아르페지오.
+ * (x, y) 는 월드 좌표(보통 탑 윗면 위).
  */
 export const playMilestoneCelebrate = (
   scene: Phaser.Scene,
@@ -35,7 +34,6 @@ export const playMilestoneCelebrate = (
   meters: number,
 ): void => {
   const dpr = (scene.registry.get("dpr") as number) ?? 1;
-  playMilestoneSound();
 
   for (let i = 0; i < BURST_COUNT; i += 1) {
     const angle = (i / BURST_COUNT) * Math.PI * 2;

@@ -34,23 +34,3 @@ export const unlockAudio = (): void => {
   src.connect(ctx.destination);
   src.start(0);
 };
-
-/** master gain 으로 라우팅된 오실레이터 톤(지수 감쇠). */
-export const playTone = (
-  freq: number,
-  duration: number,
-  type: OscillatorType = "sine",
-  vol = 0.15,
-): void => {
-  const { ctx, master } = getAudioChain();
-  const now = ctx.currentTime;
-  const osc = ctx.createOscillator();
-  const gain = ctx.createGain();
-  osc.type = type;
-  osc.frequency.setValueAtTime(freq, now);
-  gain.gain.setValueAtTime(vol, now);
-  gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
-  osc.connect(gain).connect(master);
-  osc.start(now);
-  osc.stop(now + duration);
-};

@@ -9,8 +9,6 @@ import { MERGE_TUNING } from "./mergeTuning";
  * 시안이 emitter 를 1개 쓰든(단일) 2개 쓰든(섞기) 호출부는 모르게, create 는 핸들
  * (emit/destroy)을 돌려준다.
  */
-type Emitter = Phaser.GameObjects.Particles.ParticleEmitter;
-
 export type MergeHandle = {
   emit: (x: number, y: number, level: number, tint: number) => void;
   destroy: () => void;
