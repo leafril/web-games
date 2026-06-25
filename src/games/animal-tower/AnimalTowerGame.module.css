@@ -1,0 +1,28 @@
+/* 캔버스 parent. Phaser 는 ENVELOP 한 모드로 고정하고, cover·contain 은 이 박스 크기로 가른다. */
+
+/* 박스를 뷰포트 가운데 정렬하는 바깥 래퍼. 좌우 레터박스엔 부모 배경(fallback 색)이 비친다. */
+.outer {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 기본(세로 — 폰: 뷰포트가 디자인 720:1280 보다 좁음): 박스 = 뷰포트 전체.
+   ENVELOP 이 화면을 꽉 채워 cover(풀블리드) 가 된다. 좌우만 살짝 잘린다. */
+.stage {
+  flex: none;
+  width: 100%;
+  height: 100%;
+}
+
+/* 가로(데스크톱·태블릿: 디자인보다 넓음): 박스 = 세로비율(720:1280), 높이 기준 폭 산출.
+   폭을 vh 로 명시해 캔버스 콘텐츠에 끌려가지 않게 한다(aspect-ratio 는 flex item 에서
+   콘텐츠 폭에 밀린다). 박스 비율 = 게임 비율이라 ENVELOP 이 잘림 없이 채워 contain 이 된다. */
+@media (min-aspect-ratio: 720 / 1280) {
+  .stage {
+    height: 100%;
+    width: calc(100vh * 720 / 1280);
+  }
+}

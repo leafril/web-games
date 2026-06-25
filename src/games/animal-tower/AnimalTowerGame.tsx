@@ -16,17 +16,14 @@ import { PreloadScene, GameScene, HudScene } from "./game/scenes";
 import { GAME_EVENT } from "./game/config/events";
 import { LOCAL_ANIMALS } from "./animals";
 import BgmSrc from "./assets/Bgm.mp3";
+import styles from "./AnimalTowerGame.module.css";
 
 const BGM_VOLUME = 0.2;
 const BACKGROUND_FALLBACK = "#B2DEFB";
 const GESTURE_EVENTS = ["pointerdown", "touchstart", "click", "keydown"];
 
-/** 캔버스를 뷰포트에 contain 으로 맞춘 박스. 720:1280 비율 유지, 중앙 정렬. */
-// Phaser Scale.FIT 이 이 parent 안에 캔버스를 비율 유지해 letterbox·center 한다.
-const STAGE_STYLE: React.CSSProperties = {
-  position: "absolute",
-  inset: 0,
-};
+/** 세로 디자인 비율(720:1280 = 0.5625). 뷰포트 비율이 이보다 좁으면(폰) cover, 넓으면 contain. */
+const DESIGN_ASPECT = PORTRAIT_GAME_WIDTH / PORTRAIT_GAME_HEIGHT;
 
 export const AnimalTowerGame = () => {
   const router = useRouter();
@@ -86,8 +83,10 @@ const PhaserStage = ({ onGameEnd }: PhaserStageProps) => {
         matter: { gravity: { x: 0, y: 1 }, debug: false },
       },
       scene: [PreloadScene, GameScene, HudScene],
-      // 백킹은 디자인 × dpr(카메라 zoom 이 디자인 좌표 유지). ENVELOP 으로 화면을
-      // 꽉 채우고(세로 기기 cover), 넘치는 축은 잘린다 — 레터박스·중복 배경 없음.
+      // ENVELOP 한 모드로 고정 — cover·contain 은 parent 박스 크기(CSS)로 가른다(.stage).
+      // 세로(폰)는 parent=뷰포트 전체라 ENVELOP=cover, 가로는 parent=세로비율 박스라
+      // 박스 비율=게임 비율이라 ENVELOP 이 잘림 없이 정확히 채워 contain 이 된다.
+      // 백킹은 디자인 × dpr(카메라 zoom 이 디자인 좌표 유지).
       scale: {
         mode: Phaser.Scale.ENVELOP,
         autoCenter: Phaser.Scale.CENTER_BOTH,
@@ -100,26 +99,40 @@ const PhaserStage = ({ onGameEnd }: PhaserStageProps) => {
     game.registry.set("dpr", dpr);
     game.registry.set("viewportScale", 1);
 
-    // cover(ENVELOP) 로 잘리는 가장자리만큼 inset 을 계산해 HUD 가 화면 밖으로
-    // 밀리지 않게 한다. 디자인 좌표 기준 좌우/상하 crop 의 절반.
+    // 가장자리 crop 보정(viewportInset). cover 일 때만 잘리므로 화면 방향으로 가른다.
+    // - 세로(폰: 뷰포트가 디자인보다 좁음) → cover 라 좌우가 잘린다. 잘린 만큼 inset 을 줘
+    //   HUD·발판이 화면 밖으로 안 밀리게 보정한다.
+    // - 가로(디자인보다 넓음) → contain 이라 잘림 없음 → inset 0(디자인 폭 720 을 안전 영역으로).
+    // CSS 박스가 parent 크기를 동기로 바꾸므로 resize 때 ENVELOP 은 Phaser 가 알아서 재계산한다.
     const applyViewportInset = () => {
       const vw = window.innerWidth;
       const vh = window.innerHeight;
-      const scale = Math.max(
-        vw / PORTRAIT_GAME_WIDTH,
-        vh / PORTRAIT_GAME_HEIGHT,
-      );
-      const insetX = Math.max(0, (PORTRAIT_GAME_WIDTH - vw / scale) / 2);
-      const insetY = Math.max(0, (PORTRAIT_GAME_HEIGHT - vh / scale) / 2);
-      game.registry.set("viewportInset", {
-        top: insetY,
-        right: insetX,
-        bottom: insetY,
-        left: insetX,
-      });
+      const useCover = vw / vh <= DESIGN_ASPECT;
+      if (useCover) {
+        const scale = Math.max(
+          vw / PORTRAIT_GAME_WIDTH,
+          vh / PORTRAIT_GAME_HEIGHT,
+        );
+        const insetX = Math.max(0, (PORTRAIT_GAME_WIDTH - vw / scale) / 2);
+        const insetY = Math.max(0, (PORTRAIT_GAME_HEIGHT - vh / scale) / 2);
+        game.registry.set("viewportInset", {
+          top: insetY,
+          right: insetX,
+          bottom: insetY,
+          left: insetX,
+        });
+      } else {
+        game.registry.set("viewportInset", {
+          top: 0,
+          right: 0,
+          bottom: 0,
+          left: 0,
+        });
+      }
     };
     applyViewportInset();
     window.addEventListener("resize", applyViewportInset);
+    window.addEventListener("orientationchange", applyViewportInset);
     game.events.on(GAME_EVENT.GAME_ENDED, (gameResult: GameResult) => {
       onGameEndRef.current(gameResult);
     });
@@ -151,6 +164,7 @@ const PhaserStage = ({ onGameEnd }: PhaserStageProps) => {
 
     return function destroyGame() {
       window.removeEventListener("resize", applyViewportInset);
+      window.removeEventListener("orientationchange", applyViewportInset);
       GESTURE_EVENTS.forEach((evt) =>
         document.removeEventListener(evt, startAudio, true),
       );
@@ -161,7 +175,11 @@ const PhaserStage = ({ onGameEnd }: PhaserStageProps) => {
     };
   }, []);
 
-  return <div ref={parentRef} style={STAGE_STYLE} />;
+  return (
+    <div className={styles.outer}>
+      <div ref={parentRef} className={styles.stage} />
+    </div>
+  );
 };
 
 type ResultOverlayProps = {
