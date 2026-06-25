@@ -3,6 +3,8 @@
 :root {
   --background: #0f1115;
   --foreground: #f5f6f8;
+  /* 게임 HUD·오버레이가 참조하는 폰트. --font-game-heading 은 next/font 가 주입. */
+  --font-display: var(--font-game-heading), sans-serif;
 }
 
 html,
