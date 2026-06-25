@@ -15,7 +15,6 @@ import type { GameResult } from "./engine/gameTypes";
 import { PreloadScene, GameScene, HudScene } from "./game/scenes";
 import { GAME_EVENT } from "./game/config/events";
 import { LOCAL_ANIMALS } from "./animals";
-import Background from "./game/assets/Background.jpg";
 import BgmSrc from "./assets/Bgm.mp3";
 
 const BGM_VOLUME = 0.2;
@@ -23,10 +22,10 @@ const BACKGROUND_FALLBACK = "#B2DEFB";
 const GESTURE_EVENTS = ["pointerdown", "touchstart", "click", "keydown"];
 
 /** 캔버스를 뷰포트에 contain 으로 맞춘 박스. 720:1280 비율 유지, 중앙 정렬. */
+// Phaser Scale.FIT 이 이 parent 안에 캔버스를 비율 유지해 letterbox·center 한다.
 const STAGE_STYLE: React.CSSProperties = {
-  position: "relative",
-  width: `min(100vw, calc(100dvh * ${PORTRAIT_GAME_WIDTH} / ${PORTRAIT_GAME_HEIGHT}))`,
-  height: `min(100dvh, calc(100vw * ${PORTRAIT_GAME_HEIGHT} / ${PORTRAIT_GAME_WIDTH}))`,
+  position: "absolute",
+  inset: 0,
 };
 
 export const AnimalTowerGame = () => {
@@ -44,13 +43,8 @@ export const AnimalTowerGame = () => {
         position: "fixed",
         inset: 0,
         overflow: "hidden",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
+        // 캔버스(ENVELOP)가 화면을 꽉 채우므로 배경은 로드 전 깜빡임 방지용 색만.
         backgroundColor: BACKGROUND_FALLBACK,
-        backgroundImage: `url(${Background.src})`,
-        backgroundSize: "cover",
-        backgroundPosition: "center",
       }}
     >
       {/* result 도착 시 캔버스 unmount → Phaser destroy. retry 는 result=null 로 재마운트. */}
@@ -85,9 +79,6 @@ const PhaserStage = ({ onGameEnd }: PhaserStageProps) => {
     const dpr = Math.min(Math.max(window.devicePixelRatio || 1, 1), 2);
     const game = new Phaser.Game({
       type: Phaser.AUTO,
-      parent,
-      width: PORTRAIT_GAME_WIDTH * dpr,
-      height: PORTRAIT_GAME_HEIGHT * dpr,
       transparent: true,
       render: { antialias: true },
       physics: {
@@ -95,23 +86,44 @@ const PhaserStage = ({ onGameEnd }: PhaserStageProps) => {
         matter: { gravity: { x: 0, y: 1 }, debug: false },
       },
       scene: [PreloadScene, GameScene, HudScene],
-      scale: { mode: Phaser.Scale.NONE, parent },
+      // 백킹은 디자인 × dpr(카메라 zoom 이 디자인 좌표 유지). ENVELOP 으로 화면을
+      // 꽉 채우고(세로 기기 cover), 넘치는 축은 잘린다 — 레터박스·중복 배경 없음.
+      scale: {
+        mode: Phaser.Scale.ENVELOP,
+        autoCenter: Phaser.Scale.CENTER_BOTH,
+        parent,
+        width: PORTRAIT_GAME_WIDTH * dpr,
+        height: PORTRAIT_GAME_HEIGHT * dpr,
+      },
     });
 
     game.registry.set("dpr", dpr);
-    game.registry.set("viewportInset", { top: 0, right: 0, bottom: 0, left: 0 });
     game.registry.set("viewportScale", 1);
+
+    // cover(ENVELOP) 로 잘리는 가장자리만큼 inset 을 계산해 HUD 가 화면 밖으로
+    // 밀리지 않게 한다. 디자인 좌표 기준 좌우/상하 crop 의 절반.
+    const applyViewportInset = () => {
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const scale = Math.max(
+        vw / PORTRAIT_GAME_WIDTH,
+        vh / PORTRAIT_GAME_HEIGHT,
+      );
+      const insetX = Math.max(0, (PORTRAIT_GAME_WIDTH - vw / scale) / 2);
+      const insetY = Math.max(0, (PORTRAIT_GAME_HEIGHT - vh / scale) / 2);
+      game.registry.set("viewportInset", {
+        top: insetY,
+        right: insetX,
+        bottom: insetY,
+        left: insetX,
+      });
+    };
+    applyViewportInset();
+    window.addEventListener("resize", applyViewportInset);
     game.events.on(GAME_EVENT.GAME_ENDED, (gameResult: GameResult) => {
       onGameEndRef.current(gameResult);
     });
     game.scene.start(SCENES.preload, { assets: LOCAL_ANIMALS });
-
-    const canvas = parent.querySelector("canvas");
-    if (canvas) {
-      canvas.style.width = "100%";
-      canvas.style.height = "100%";
-      canvas.style.objectFit = "contain";
-    }
 
     gameRef.current = game;
 
@@ -138,6 +150,7 @@ const PhaserStage = ({ onGameEnd }: PhaserStageProps) => {
     );
 
     return function destroyGame() {
+      window.removeEventListener("resize", applyViewportInset);
       GESTURE_EVENTS.forEach((evt) =>
         document.removeEventListener(evt, startAudio, true),
       );

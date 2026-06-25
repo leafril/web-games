@@ -28,13 +28,6 @@ import Tiger from "./game/assets/animals/Tiger.png";
 import Wolf from "./game/assets/animals/Wolf.png";
 import Zebra from "./game/assets/animals/Zebra.png";
 
-/**
- * 게임에 발음 음성은 없지만(이미지 전용), 게임 코어가 모든 블록 audioUrl 을
- * 로드하므로 빈 문자열 대신 무음 WAV 데이터 URI 를 줘 로드 에러를 막는다.
- */
-const SILENT_AUDIO =
-  "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=";
-
 type AnimalArt = { nameEn: string; nameKo: string; src: string };
 
 // nameEn 은 ANIMAL_SHAPES 키와 매칭(대소문자·공백 무관). 히트박스가 여기 정의된 28종 중
@@ -69,11 +62,14 @@ const ANIMALS: AnimalArt[] = [
   { nameEn: "Zebra", nameKo: "얼룩말", src: Zebra.src },
 ];
 
-/** 게임 코어(buildBlocks)에 넘기는 로컬 동물 풀. BE 단어 API 를 대체한다. */
+/**
+ * 게임 코어(buildBlocks)에 넘기는 로컬 동물 풀. BE 단어 API 를 대체한다.
+ * 발음 음성은 없어 audioUrl 은 빈 문자열 — GameScene 이 로드를 건너뛴다(무음).
+ */
 export const LOCAL_ANIMALS: Word[] = ANIMALS.map((animal, index) => ({
   id: index + 1,
   nameEn: animal.nameEn,
   nameKo: animal.nameKo,
   imageUrl: animal.src,
-  audioUrl: SILENT_AUDIO,
+  audioUrl: "",
 }));

@@ -18,7 +18,6 @@ import {
   toEncounteredWords,
 } from "@/games/animal-tower/engine/encounteredWords";
 import {
-  MILESTONE_CHEER_COUNT,
   PLATFORM,
   REGISTRY,
   SCENES,
@@ -40,7 +39,6 @@ import {
 } from "../config/milestone";
 import { DEV_TUNING } from "../config/devTuning";
 import { paletteHex, fontSizePx } from "../config/theme";
-import { playAnimalCallout } from "../effects/animalCallout";
 import {
   playChangeSound,
   playReleaseSound,
@@ -398,7 +396,7 @@ export class GameScene extends Phaser.Scene {
     // 원격 발음 — PreloadScene 의 이미지 로드와 동일하게 CORS anonymous 필요.
     this.load.setCORS("anonymous");
     this.blocks.forEach((block) => {
-      if (!this.cache.audio.exists(block.audioKey)) {
+      if (block.audioUrl && !this.cache.audio.exists(block.audioKey)) {
         this.load.audio(block.audioKey, block.audioUrl);
         queued = true;
       }
@@ -523,7 +521,6 @@ export class GameScene extends Phaser.Scene {
       block.displayWidth,
     );
     playSpawnPop(this, this.hangingBlock);
-    playAnimalCallout(this, this.hangingBlock, block.animalName);
     playSpawnSound(this);
     if (this.suppressNextSpawnVoice) {
       this.suppressNextSpawnVoice = false;
@@ -886,17 +883,7 @@ export class GameScene extends Phaser.Scene {
    * 끊기지 않게 한다. 변주는 마일스톤 순번으로 결정적 로테이션.
    */
   private playMilestoneCheer(): void {
-    const ordinal = this.lastMilestone / MILESTONE_INTERVAL_M;
-    const index = (ordinal - 1) % MILESTONE_CHEER_COUNT;
-    const key = `${SOUNDS.milestoneCheerPrefix}${index}`;
-    if (!this.cache.audio.exists(key)) {
-      return;
-    }
-    this.currentVoice?.stop();
-    this.currentVoice?.destroy();
-    this.currentVoice = this.sound.add(key);
-    this.currentVoice.play();
-    this.suppressNextSpawnVoice = true;
+    // 순수 탑쌓기 — 마일스톤 격려 음성 제거(no-op).
   }
 
   private handleBlockEjected(): void {
