@@ -11,6 +11,11 @@ const GAMES = [
     title: "Animal Tower",
     description: "동물 블록을 쌓아 올리는 밸런스 게임",
   },
+  {
+    slug: "memory",
+    title: "Memory",
+    description: "같은 그림을 기억해 짝 맞추는 카드 게임",
+  },
 ];
 
 export default function HomePage() {
